@@ -1,0 +1,4 @@
+"use client";
+import {useEffect,useState,use} from "react"; import {api,API_BASE} from "@/lib/api";
+type Report={week:string;title:string;content_html:string;generation_mode:string};
+export default function ReportDetail({params}:{params:Promise<{week:string}>}){const {week}=use(params); const [row,setRow]=useState<Report|null>(null); useEffect(()=>{api<Report>(`/api/reports/${week}`).then(setRow)},[week]); if(!row)return <p>加载中…</p>; return <div className="space-y-6"><div><h1 className="text-2xl font-bold">{row.title}</h1><p className="text-sm text-slate-500">生成方式：{row.generation_mode}</p></div><div className="grid gap-4 md:grid-cols-3">{["wordcloud.png","github_growth_top10.png","keyword_trend.png"].map(name=><img className="card h-auto w-full p-2" key={name} src={`${API_BASE}/api/reports/${week}/images/${name}`} alt={name}/>)}</div><article className="card prose max-w-none" dangerouslySetInnerHTML={{__html:row.content_html}}/></div>}

@@ -1,0 +1,4 @@
+"use client";
+import {useEffect,useState} from "react"; import {api} from "@/lib/api";
+type Repo={full_name:string;url:string;description:string;language:string;stars:number;forks:number;stars_growth_7d:number};
+export default function Github(){const [rows,setRows]=useState<Repo[]>([]); useEffect(()=>{api<Repo[]>("/api/github/hot").then(setRows)},[]); return <div><h1 className="mb-6 text-2xl font-bold">GitHub 热门项目</h1><div className="grid gap-4">{rows.map((r,i)=><div className="card" key={r.full_name}><div className="flex justify-between"><a className="font-semibold text-blue-700" target="_blank" href={r.url}>{i+1}. {r.full_name}</a><span className="font-medium text-green-600">+{r.stars_growth_7d}</span></div><p className="my-2 text-sm text-slate-600">{r.description}</p><div className="text-xs text-slate-500">{r.language||"未知"} · ⭐ {r.stars.toLocaleString()} · Fork {r.forks.toLocaleString()}</div></div>)}</div></div>}

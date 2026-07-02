@@ -1,0 +1,4 @@
+"use client";
+import {useEffect,useState} from "react"; import Link from "next/link"; import {api} from "@/lib/api";
+type Report={week:string;title:string;summary:string;created_at:string;generation_mode:string};
+export default function Reports(){const [rows,setRows]=useState<Report[]>([]); useEffect(()=>{api<Report[]>("/api/reports").then(setRows)},[]); return <div><h1 className="mb-6 text-2xl font-bold">历史周报</h1><div className="space-y-4">{rows.map(row=><Link href={`/reports/${row.week}`} key={row.week} className="card block hover:border-blue-300"><div className="flex justify-between"><h2 className="font-semibold">{row.title}</h2><span className="text-xs text-slate-500">{row.generation_mode}</span></div><p className="mt-2 line-clamp-2 text-sm text-slate-600">{row.summary}</p></Link>)}{!rows.length&&<div className="card">暂无周报</div>}</div></div>}

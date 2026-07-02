@@ -1,0 +1,69 @@
+import json
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
+from app.database import GithubRepo, KeywordStat, WeeklyReport, get_db
+
+
+router = APIRouter(prefix="/api", tags=["reports"])
+
+
+def report_dict(row: WeeklyReport, detail: bool = False) -> dict:
+    data = {"id": row.id, "week": row.week, "title": row.title, "summary": row.summary,
+            "wordcloud_image": row.wordcloud_image, "github_chart_image": row.github_chart_image,
+            "keyword_trend_image": row.keyword_trend_image, "generation_mode": row.generation_mode,
+            "llm_provider": row.llm_provider, "llm_model": row.llm_model,
+            "created_at": row.created_at, "pushed_at": row.pushed_at}
+    if detail:
+        data.update({"content_md": row.content_md, "content_html": row.content_html})
+    return data
+
+
+@router.get("/reports")
+def reports(session: Session = Depends(get_db)):
+    return [report_dict(row) for row in session.query(WeeklyReport).order_by(WeeklyReport.week.desc()).all()]
+
+
+@router.get("/reports/{week}")
+def report_detail(week: str, session: Session = Depends(get_db)):
+    row = session.query(WeeklyReport).filter(WeeklyReport.week == week).first()
+    if not row: raise HTTPException(404, "周报不存在")
+    return report_dict(row, detail=True)
+
+
+@router.get("/reports/{week}/images/{image_name}")
+def report_image(week: str, image_name: str, session: Session = Depends(get_db)):
+    if image_name not in {"wordcloud.png", "github_growth_top10.png", "keyword_trend.png"}:
+        raise HTTPException(404, "图片不存在")
+    row = session.query(WeeklyReport).filter(WeeklyReport.week == week).first()
+    if not row: raise HTTPException(404, "周报不存在")
+    path = Path(row.report_path).parent / image_name
+    if not path.exists(): raise HTTPException(404, "图片不存在")
+    return FileResponse(path)
+
+
+@router.get("/github/hot")
+def github_hot(week: str | None = None, session: Session = Depends(get_db)):
+    if not week:
+        latest = session.query(GithubRepo.week).order_by(GithubRepo.week.desc()).first()
+        week = latest[0] if latest else ""
+    rows = session.query(GithubRepo).filter(GithubRepo.week == week).order_by(GithubRepo.stars_growth_7d.desc()).limit(10).all()
+    return [{"week": row.week, "repo_name": row.repo_name, "full_name": row.full_name, "url": row.url,
+             "description": row.description, "language": row.language, "stars": row.stars,
+             "forks": row.forks, "open_issues": row.open_issues, "stars_growth_7d": row.stars_growth_7d,
+             "topics": json.loads(row.topics)} for row in rows]
+
+
+@router.get("/keywords/trends")
+def keyword_trends(week: str | None = None, session: Session = Depends(get_db)):
+    if not week:
+        latest = session.query(KeywordStat.week).order_by(KeywordStat.week.desc()).first()
+        week = latest[0] if latest else ""
+    rows = session.query(KeywordStat).filter(KeywordStat.week == week).order_by(KeywordStat.trend_score.desc()).all()
+    return [{"week": row.week, "keyword": row.keyword, "frequency": row.frequency,
+             "source_count": row.source_count, "github_count": row.github_count, "news_count": row.news_count,
+             "growth_rate": row.growth_rate, "trend_score": row.trend_score} for row in rows]
+
