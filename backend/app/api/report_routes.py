@@ -1,10 +1,12 @@
 import json
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.agents.serverchan_push_agent import ServerChanPushAgent
 from app.database import GithubRepo, KeywordStat, WeeklyReport, get_db
 
 
@@ -32,6 +34,32 @@ def report_detail(week: str, session: Session = Depends(get_db)):
     row = session.query(WeeklyReport).filter(WeeklyReport.week == week).first()
     if not row: raise HTTPException(404, "周报不存在")
     return report_dict(row, detail=True)
+
+
+@router.post("/reports/{week}/push")
+def push_report(week: str, session: Session = Depends(get_db)):
+    # 手动推送只使用已经生成并保存的数据，避免重新执行整套周报任务。
+    report = session.query(WeeklyReport).filter(WeeklyReport.week == week).first()
+    if not report:
+        raise HTTPException(404, "周报不存在")
+    if report.pushed_at:
+        raise HTTPException(409, "该周报已经推送过，不能重复推送")
+
+    trends = session.query(KeywordStat).filter(KeywordStat.week == week).order_by(KeywordStat.trend_score.desc()).all()
+    repos = session.query(GithubRepo).filter(GithubRepo.week == week).order_by(GithubRepo.stars_growth_7d.desc()).limit(10).all()
+    context = {
+        "report": {"summary": report.summary},
+        "trends": [{"keyword": row.keyword} for row in trends],
+        "repos": [{"full_name": row.full_name, "stars_growth_7d": row.stars_growth_7d} for row in repos],
+    }
+
+    # 复用当前自动任务的微信配置和推送实现，并只在真实发送成功后标记已推送。
+    result = ServerChanPushAgent().run(session, week, context)
+    if result["status"] != "success":
+        raise HTTPException(502, result["error"] or "微信推送失败")
+    report.pushed_at = datetime.now()
+    session.commit()
+    return {"message": "周报已成功推送到微信", "week": week, "pushed_at": report.pushed_at}
 
 
 @router.get("/reports/{week}/images/{image_name}")
@@ -66,4 +94,3 @@ def keyword_trends(week: str | None = None, session: Session = Depends(get_db)):
     return [{"week": row.week, "keyword": row.keyword, "frequency": row.frequency,
              "source_count": row.source_count, "github_count": row.github_count, "news_count": row.news_count,
              "growth_rate": row.growth_rate, "trend_score": row.trend_score} for row in rows]
-
