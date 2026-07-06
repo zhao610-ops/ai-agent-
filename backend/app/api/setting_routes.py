@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import PushLog, get_db
 from app.services.settings_service import (
     get_llm_config, get_serverchan_config, update_llm_config, update_serverchan_config,
@@ -27,6 +28,18 @@ class ServerChanConfigInput(BaseModel):
     sendkey: str | None = Field(default=None, max_length=1000)
 
 
+@router.get("")
+def public_settings():
+    """仅返回可公开的演示状态，不包含任何密钥或内部配置。"""
+    settings = get_settings()
+    return {
+        "demo_mode": settings.demo_mode,
+        "public_demo": settings.public_demo,
+        "allow_real_push": settings.allow_real_push,
+        "allow_real_llm": settings.allow_real_llm,
+    }
+
+
 @router.get("/llm")
 def llm_config(session: Session = Depends(get_db)):
     return get_llm_config(session)
@@ -42,6 +55,8 @@ def save_llm_config(data: LLMConfigInput, session: Session = Depends(get_db)):
 
 @router.post("/test-llm")
 def test_llm(session: Session = Depends(get_db)):
+    if not get_settings().allow_real_llm:
+        return {"success": True, "demo": True, "error": "", "output": "演示模式下未真实请求外部服务，未真实调用模型。"}
     config = get_llm_config(session, include_secret=True)
     if not config["api_key_configured"]:
         return {"success": False, "error": "未配置 API Key", "output": ""}
@@ -71,6 +86,12 @@ def save_serverchan_config(data: ServerChanConfigInput, session: Session = Depen
 
 @router.post("/test-push")
 def test_push(session: Session = Depends(get_db)):
+    if not get_settings().allow_real_push:
+        message = "演示模式下未真实请求外部服务，未真实推送微信。"
+        session.add(PushLog(week="demo-test", title="演示模式测试推送", content=message,
+                            status="skipped", response='{"demo": true}', error_message=message))
+        session.commit()
+        return {"success": True, "demo": True, "message": message}
     config = get_serverchan_config(session, include_secret=True)
     if not config["enabled"]: raise HTTPException(400, "Server 酱未启用")
     if not config["sendkey_configured"]: raise HTTPException(400, "未配置 Server 酱 SendKey")

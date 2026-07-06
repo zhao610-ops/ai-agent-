@@ -57,6 +57,9 @@ def push_report(week: str, session: Session = Depends(get_db)):
 
     # 复用当前自动任务的微信配置和推送实现，并只在真实发送成功后标记已推送。
     result = ServerChanPushAgent().run(session, week, context)
+    if result.get("demo"):
+        return {"message": "演示模式下未真实请求外部服务，未真实推送微信。", "week": week,
+                "pushed_at": None, "demo": True}
     if result["status"] != "success":
         raise HTTPException(502, result["error"] or "微信推送失败")
     report.pushed_at = datetime.now()

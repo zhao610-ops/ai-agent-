@@ -13,16 +13,21 @@ class GitHubAgent(BaseAgent):
     name = "GitHubAgent"
 
     def run(self, session: Session, week: str, context: dict) -> list[dict]:
-        tool = GithubTool(get_settings().github_token)
-        try:
-            items = tool.search()
-            items = [item for item in items if item.get("full_name") and item.get("url")]
-            if not items:
-                raise RuntimeError("GitHub 未返回数据")
-        except Exception as exc:
+        settings = get_settings()
+        tool = GithubTool("" if settings.demo_mode else settings.github_token)
+        if settings.demo_mode:
             items = tool.mock()
-            context["fallbacks"].append("GitHubAgent 使用 mock 数据")
-            context["agent_errors"].setdefault(self.name, []).append(f"GitHub API 失败，已使用 mock 数据：{exc}")
+            context["fallbacks"].append("GitHubAgent 演示模式使用 mock 数据")
+        else:
+            try:
+                items = tool.search()
+                items = [item for item in items if item.get("full_name") and item.get("url")]
+                if not items:
+                    raise RuntimeError("GitHub 未返回数据")
+            except Exception as exc:
+                items = tool.mock()
+                context["fallbacks"].append("GitHubAgent 使用 mock 数据")
+                context["agent_errors"].setdefault(self.name, []).append(f"GitHub API 失败，已使用 mock 数据：{exc}")
         session.query(GithubRepo).filter(GithubRepo.week == week).delete()
         result = []
         for item in items:

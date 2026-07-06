@@ -18,7 +18,10 @@ class ReportAgent(BaseAgent):
         content = template
         mode = "template"
         llm_error = ""
-        if config["enabled"] and config["api_key_configured"]:
+        allow_real_llm = getattr(get_settings(), "allow_real_llm", True)
+        if not allow_real_llm:
+            context["fallbacks"].append("ReportAgent 演示模式使用模板周报")
+        elif config["enabled"] and config["api_key_configured"]:
             try:
                 prompt = "请基于以下可靠素材生成中文 AI Agent 周报。保留所有原始链接，不编造事实，使用清晰 Markdown，包含核心结论、重要新闻、GitHub TOP10、热词、趋势判断和项目启发。\n\n" + template
                 content = LLMTool(config["base_url"], config["model"], config["api_key"]).chat([

@@ -2,6 +2,14 @@
 
 一个可完整演示的 AI Agent 工程项目：每周采集 AI Agent 新闻与 GitHub 热门项目，完成清洗、趋势分析、可视化和中文周报生成，并通过前端展示 7 个 Agent 的执行状态。系统支持 OpenAI 兼容模型和 Server 酱；没有任何 API Key 时也能依靠 mock 与模板降级跑通闭环。
 
+## 在线演示
+
+- 前端演示地址：待部署后填写
+- 后端 API 地址：待部署后填写
+- API 文档地址：待部署后填写
+
+在线演示环境默认使用 mock 数据，关闭真实 LLM 调用和 Server 酱微信推送，避免消耗 API 额度或误推送微信。完整真实调用能力可在本地配置 `.env` 后测试。
+
 ## 项目亮点
 
 - 7 个 Agent 顺序协作，统一记录 pending、running、success、failed、耗时、输出数量和异常。
@@ -104,6 +112,10 @@ npm run dev
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `BACKEND_PORT` | `8000` | uvicorn 启动端口参考值 |
+| `DEMO_MODE` | `true` | 优先使用 mock 数据，不请求 RSS/GitHub |
+| `PUBLIC_DEMO` | `true` | 前端显示在线演示提示 |
+| `ALLOW_REAL_PUSH` | `false` | 是否允许真实 Server 酱请求 |
+| `ALLOW_REAL_LLM` | `false` | 是否允许真实 LLM 请求 |
 | `DATABASE_URL` | `sqlite:///./data/weekly_agent.db` | 数据库连接 |
 | `REPORTS_DIR` | `./reports` | 周报和图表目录 |
 | `FRONTEND_URL` | `http://localhost:3000` | 周报链接及 CORS 来源 |
@@ -120,6 +132,80 @@ npm run dev
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | 前端请求的后端地址 |
 
 不要提交 `.env`、`.env.local`、数据库或生成目录。
+
+本地需要测试真实模型和推送时，显式设置：
+
+```dotenv
+DEMO_MODE=false
+PUBLIC_DEMO=false
+ALLOW_REAL_PUSH=true
+ALLOW_REAL_LLM=true
+```
+
+## 在线部署
+
+### Render 部署后端
+
+1. 将项目推送到 GitHub，在 Render 新建 Web Service 并选择仓库。
+2. Root Directory 设置为 `backend`。
+3. Build Command 设置为 `pip install -r requirements.txt`。
+4. Start Command 设置为 `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`。
+5. 配置下方“后端生产环境变量”，部署后记录 Render 提供的 HTTPS 地址。
+6. 免费实例的本地 SQLite 和 `reports/` 可能在重启后丢失；正式持久化可挂载磁盘或改用托管 PostgreSQL。
+
+### Railway 部署后端
+
+1. 在 Railway 创建 GitHub Repository 项目，服务 Root Directory 设置为 `/backend`。
+2. Build Command 设置为 `pip install -r requirements.txt`。
+3. Start Command 设置为 `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`。
+4. 添加生产环境变量并生成 Public Domain。
+5. 如使用 Railway PostgreSQL，将 `DATABASE_URL` 改为平台提供的连接地址；当前 SQLAlchemy 模型可继续复用，但正式迁移建议接入 Alembic。
+
+### 后端生产环境变量
+
+```dotenv
+DEMO_MODE=true
+PUBLIC_DEMO=true
+ALLOW_REAL_PUSH=false
+ALLOW_REAL_LLM=false
+DATABASE_URL=sqlite:///./data/weekly_agent.db
+REPORTS_DIR=./reports
+FRONTEND_URL=https://你的-vercel-域名.vercel.app
+TIMEZONE=Asia/Shanghai
+SCHEDULE_DAY=mon
+SCHEDULE_HOUR=8
+SCHEDULE_MINUTE=30
+GITHUB_TOKEN=
+LLM_ENABLED=false
+LLM_API_KEY=
+SERVER_CHAN_ENABLED=false
+SERVER_CHAN_SENDKEY=
+```
+
+演示环境不要配置 GitHub Token、LLM API Key 和 SendKey。即使误配置，三个安全开关仍会阻止 RSS/GitHub、LLM 和微信外部请求。
+
+### Vercel 部署前端
+
+1. 在 Vercel 导入同一 GitHub 仓库。
+2. Root Directory 设置为 `frontend`，Framework Preset 选择 Next.js。
+3. 添加环境变量：
+
+```dotenv
+NEXT_PUBLIC_API_BASE_URL=https://你的后端域名
+```
+
+4. 部署前端，将得到的 Vercel 地址写回后端 `FRONTEND_URL`，然后重新部署后端以更新 CORS。
+5. 验证 Dashboard 能加载，并检查页面顶部出现“当前为在线演示环境”提示。
+
+### 填写 GitHub README 演示链接
+
+部署完成后替换 README 顶部三个占位符：
+
+```markdown
+- 前端演示地址：https://你的项目.vercel.app
+- 后端 API 地址：https://你的后端域名
+- API 文档地址：https://你的后端域名/docs
+```
 
 ## LLM 配置
 

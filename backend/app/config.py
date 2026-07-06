@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     schedule_hour: int = 8
     schedule_minute: int = 30
 
+    # 本地默认保留真实能力；在线部署通过环境变量显式开启安全演示模式。
+    demo_mode: bool = False
+    public_demo: bool = False
+    allow_real_push: bool = True
+    allow_real_llm: bool = True
+
     github_token: str = ""
     news_rss_urls: str = "https://news.google.com/rss/search?q=AI%20Agent&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
 
@@ -38,4 +44,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

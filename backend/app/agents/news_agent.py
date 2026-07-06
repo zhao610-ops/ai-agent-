@@ -15,15 +15,19 @@ class NewsAgent(BaseAgent):
     def run(self, session: Session, week: str, context: dict) -> list[dict]:
         settings = get_settings()
         tool = RSSTool()
-        try:
-            items = tool.fetch([url.strip() for url in settings.news_rss_urls.split(",") if url.strip()])
-            items = [item for item in items if item.get("title") and item.get("url")]
-            if not items:
-                raise RuntimeError("RSS 未返回数据")
-        except Exception as exc:
+        if settings.demo_mode:
             items = tool.mock()
-            context["fallbacks"].append("NewsAgent 使用 mock 数据")
-            context["agent_errors"].setdefault(self.name, []).append(f"RSS 采集失败，已使用 mock 数据：{exc}")
+            context["fallbacks"].append("NewsAgent 演示模式使用 mock 数据")
+        else:
+            try:
+                items = tool.fetch([url.strip() for url in settings.news_rss_urls.split(",") if url.strip()])
+                items = [item for item in items if item.get("title") and item.get("url")]
+                if not items:
+                    raise RuntimeError("RSS 未返回数据")
+            except Exception as exc:
+                items = tool.mock()
+                context["fallbacks"].append("NewsAgent 使用 mock 数据")
+                context["agent_errors"].setdefault(self.name, []).append(f"RSS 采集失败，已使用 mock 数据：{exc}")
         result = []
         for item in items:
             try:
